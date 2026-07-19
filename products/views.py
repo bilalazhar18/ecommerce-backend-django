@@ -4,43 +4,39 @@ from django.shortcuts import get_object_or_404
 from django.http import HttpResponse
 from rest_framework.decorators import api_view
 from rest_framework.response import Response
-
+from rest_framework.views import APIView
+from rest_framework.generics import ListCreateAPIView, RetrieveUpdateDestroyAPIView
 from orders import models
 from .models import Collection, Product
 from rest_framework import status
 from .serilaizer import CollectionSerializer, ProductSerializer
 
-@api_view(['GET','POST'])
-def product_list(request):
-    if request.method == 'GET':
-        queryset = Product.objects.all()
-        # "many=True" tells Django we are serializing a list of items, not just one
-        serializer=ProductSerializer(queryset, many=True)
-        return Response(serializer.data)
-    elif request.method == 'POST':  
-        serializer = ProductSerializer(data=request.data)
-        serializer.is_valid(raise_exception=True)
-        #for printing the validated data, you can use serializer.validated_data
-        #serializer.validated_data
-        serializer.save()
-        return Response(serializer.data, status=status.HTTP_201_CREATED)
+class ProductList(ListCreateAPIView):
+    queryset = Product.objects.select_related('collection').all()
+    serializer_class = ProductSerializer
 
-@api_view(['GET','PUT','DELETE'])
-def product_detail(request, id):
-    product = get_object_or_404(Product, pk=id)
-    if request.method == 'GET':
-        serializer=ProductSerializer(product)
-        return Response(serializer.data)    
-    elif request.method == 'PUT':
-        serializer = ProductSerializer(product, data=request.data)
-        serializer.is_valid(raise_exception=True)
-        serializer.save()
-        return Response(serializer.data,status=status.HTTP_200_OK)
-    elif request.method == 'DELETE':
+    def get_serializer_context(self):
+        return {'request': self.request}
+
+
+    # def post(self, request):
+    #     serializer = ProductSerializer(data=request.data)
+    #     serializer.is_valid(raise_exception=True)
+    #     #for printing the validated data, you can use serializer.validated_data
+    #     #serializer.validated_data
+    #     serializer.save()
+    #     return Response(serializer.data, status=status.HTTP_201_CREATED)
+        
+class ProductDetail(RetrieveUpdateDestroyAPIView):
+    queryset = Product.objects.select_related('collection').all()
+    serializer_class = ProductSerializer
+
+    def delete(self, request, pk):
+        product = get_object_or_404(Product, pk=pk)
         if product.orderitems.count() > 0:
             return Response({"error": "Product cannot be deleted because it is associated with orders."}, status=status.HTTP_405_METHOD_NOT_ALLOWED)
         product.delete()
-        return Response(status=status.HTTP_204_NO_CONTENT)
+        return Response({'message': 'Product deleted successfully'}, status=status.HTTP_200_OK)
     
 
 @api_view(['GET','POST'])
